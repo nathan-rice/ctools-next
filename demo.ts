@@ -25,16 +25,29 @@ const fact = [1, 1, 2, 6, 24];
 const pow = Math.pow;
 
 class Point {
-    constructor(public x, public y, public z) {}
+    constructor(public x: number, public y: number, public z?: number) {}
+
+    toAugmented2DArray(): number[] {
+        return [this.x, this.y, 1];
+    }
+
+    to2DArray(): number[] {
+        return [this.x, this.y];
+    }
+
+    toAugmented3DArray(): number[] {
+        return [this.x, this.y, this.z, 1];
+    }
+
+    to3DArray(): number[] {
+        return [this.x, this.y, this.z];
+    }
 }
 
 class BezierSurface {
     interpolationX: number[][];
     interpolationY: number[][];
     interpolationZ: number[][];
-
-    protected m = 3;
-    protected n = 1;
 
     constructor(public controlPoints: Point[][]) {
         this.generateInterpolationMatrices();
@@ -61,13 +74,32 @@ class BezierSurface {
         this.interpolationZ = this.generateInterpolationMatrix(this.z());
     }
 
-    evaluate(u, v) {
+    evaluate(u, v): number {
         let uArr = [1, u, pow(u, 2), pow(u, 3)], vArr = [1, v];
-        return numeric.dot(numeric.dot(uArr, this.interpolationZ) as number[][], numeric.transpose(vArr));
+        return numeric.dot(numeric.dot(uArr, this.interpolationZ), vArr);
     }
 
-    projectToUnitSquare(points: number[][]) {
-        // first we need to define a linear transformation
+    projectToUnitSquare(points: Point[]) {
+        let pointArr = points.map(p => p.toAugmented2DArray()),
+            p0 = this.controlPoints[0][1].to2DArray(),
+            p1 = this.controlPoints[0][0].to2DArray(),
+            p2 = this.controlPoints[0][1].to2DArray(),
+            deltaP0P1 = numeric.sub(p1, p0),
+            deltaP0P1norm = numeric.norm2(deltaP0P1),
+            deltaP0P2 = numeric.sub(p2, p0),
+            deltaP0P2norm = numeric.norm2(deltaP0P2),
+            scaleTranslate = [
+                [1/deltaP0P1norm, 0, -p0[0] / deltaP0P1norm],
+                [0, 1/deltaP0P2norm, -p0[1] / deltaP0P2norm],
+                [0, 0, 1]
+            ],
+            cosTheta = (p1[0] - p0[0]) / deltaP0P1norm,
+            sinTheta = (p1[1] - p0[1]) / deltaP0P1norm,
+            rotate = [
+                [cosTheta, -sinTheta, 0],
+                [sinTheta, cosTheta, 0],
+                [0, 0, 1]
+            ];
     }
 
     x(): number[][] {
