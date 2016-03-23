@@ -1,4 +1,4 @@
-/// <reference path="numeric.d.ts" />
+/// <reference path="definitions/numeric.d.ts" />
 
 const quadraticBernsteinMatrix = [
     [1, 0, 0, 0],
@@ -24,7 +24,7 @@ const fact = [1, 1, 2, 6, 24];
 
 const pow = Math.pow;
 
-class Point {
+export class Point {
     constructor(public x: number, public y: number, public z?: number) {}
 
     toAugmented2DArray(): number[] {
@@ -44,7 +44,7 @@ class Point {
     }
 }
 
-class BezierSurface {
+export class BezierSurface {
     interpolationX: number[][];
     interpolationY: number[][];
     interpolationZ: number[][];
@@ -74,16 +74,20 @@ class BezierSurface {
         this.interpolationZ = this.generateInterpolationMatrix(this.z());
     }
 
-    evaluate(u, v): number {
+    evaluate(u: number, v: number): number {
         let uArr = [1, u, pow(u, 2), pow(u, 3)], vArr = [1, v];
         return numeric.dot(numeric.dot(uArr, this.interpolationZ), vArr);
     }
 
-    projectToUnitSquare(points: Point[]) {
-        let pointArr = points.map(p => p.toAugmented2DArray()),
-            p0 = this.controlPoints[0][1].to2DArray(),
-            p1 = this.controlPoints[0][0].to2DArray(),
-            p2 = this.controlPoints[0][1].to2DArray(),
+    projectToUnitSquare(points: Point[]): number[][] {
+        let pointArr = points.map(p => p.toAugmented2DArray());
+        return numeric.dot(pointArr, this.generateTransformationMatrix()).map(arr => arr.slice(0, 2));
+    }
+
+    generateTransformationMatrix(): number[][] {
+        let p0 = this.controlPoints[0][0].to2DArray(),
+            p1 = this.controlPoints[0][1].to2DArray(),
+            p2 = this.controlPoints[1][0].to2DArray(),
             deltaP0P1 = numeric.sub(p1, p0),
             deltaP0P1norm = numeric.norm2(deltaP0P1),
             deltaP0P2 = numeric.sub(p2, p0),
@@ -93,13 +97,14 @@ class BezierSurface {
                 [0, 1/deltaP0P2norm, -p0[1] / deltaP0P2norm],
                 [0, 0, 1]
             ],
-            cosTheta = (p1[0] - p0[0]) / deltaP0P1norm,
-            sinTheta = (p1[1] - p0[1]) / deltaP0P1norm,
+            cosTheta = (p2[0] - p0[0]) / deltaP0P2norm,
+            sinTheta = (p2[1] - p0[1]) / deltaP0P2norm,
             rotate = [
                 [cosTheta, -sinTheta, 0],
                 [sinTheta, cosTheta, 0],
                 [0, 0, 1]
             ];
+            return numeric.dot(scaleTranslate, rotate);
     }
 
     x(): number[][] {
@@ -115,7 +120,7 @@ class BezierSurface {
     }
 }
 
-class BicubicBezierSurface extends BezierSurface {
+export class BicubicBezierSurface extends BezierSurface {
     protected generateInterpolationMatrix(points: number[][]) {
         let i, j, p;
 
