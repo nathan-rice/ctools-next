@@ -51,6 +51,7 @@ define(["demo"], function (demo) {
             ],
                 surface = new demo.BezierSurface(points),
                 projected = surface.projectToUnitSquare(points[0]);
+
             expect(projected[0][0]).toBeCloseTo(0);
             expect(projected[0][1]).toBeCloseTo(0);
             expect(projected[1][0]).toBeCloseTo(0);
