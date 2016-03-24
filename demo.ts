@@ -74,7 +74,13 @@ export class BezierSurface {
         this.interpolationZ = this.generateInterpolationMatrix(this.z());
     }
 
+    evaluatePoints(points: Point[]) {
+        let projected = this.projectToUnitSquare(points);
+        return projected.map(p => this.evaluate(p[0], p[1]));
+    }
+
     evaluate(u: number, v: number): number {
+        if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
         let uArr = [1, u, pow(u, 2), pow(u, 3)], vArr = [1, v];
         return numeric.dot(numeric.dot(uArr, this.interpolationZ), vArr);
     }
@@ -84,27 +90,43 @@ export class BezierSurface {
         return numeric.dot(pointArr, this.generateTransformationMatrix()).map(arr => arr.slice(0, 2));
     }
 
+    generateTranslationMatrix(): number[][] {
+        let p = this.controlPoints[0][0];
+        return [
+            [1, 0, 0],
+            [0, 1, 0],
+            [-p.x, -p.y, 1]
+        ]
+    }
+
+    generateRotationMatrix(): number[][] {
+        let p0 = this.controlPoints[0][0],
+            p1 = this.controlPoints[1][0],
+            adjacent = (p1.x - p0.x),
+            opposite = (p1.y - p0.y),
+            hypotenuse = numeric.norm2([adjacent, opposite]),
+            cosTheta = adjacent / hypotenuse,
+            sinTheta = opposite / hypotenuse;
+        return [
+            [cosTheta, -sinTheta, 0],
+            [sinTheta, cosTheta, 0],
+            [0, 0, 1]
+        ]
+    }
+
     generateTransformationMatrix(): number[][] {
-        let p0 = this.controlPoints[0][0].to2DArray(),
-            p1 = this.controlPoints[0][1].to2DArray(),
-            p2 = this.controlPoints[1][0].to2DArray(),
-            deltaP0P1 = numeric.sub(p1, p0),
-            deltaP0P1norm = numeric.norm2(deltaP0P1),
-            deltaP0P2 = numeric.sub(p2, p0),
-            deltaP0P2norm = numeric.norm2(deltaP0P2),
-            scaleTranslate = [
-                [1/deltaP0P1norm, 0, -p0[0] / deltaP0P1norm],
-                [0, 1/deltaP0P2norm, -p0[1] / deltaP0P2norm],
-                [0, 0, 1]
-            ],
-            cosTheta = (p2[0] - p0[0]) / deltaP0P2norm,
-            sinTheta = (p2[1] - p0[1]) / deltaP0P2norm,
-            rotate = [
-                [cosTheta, -sinTheta, 0],
-                [sinTheta, cosTheta, 0],
+        let last = this.controlPoints[0].length - 1,
+            mostDistantPoint = this.controlPoints[1][last].toAugmented2DArray(),
+            translate = this.generateTranslationMatrix(),
+            rotate = this.generateRotationMatrix(),
+            translateRotate = numeric.dot(translate, rotate),
+            transformedPoint = numeric.dot(mostDistantPoint, translateRotate),
+            scale = [
+                [1/transformedPoint[0], 0, 0],
+                [0, 1/transformedPoint[1], 0],
                 [0, 0, 1]
             ];
-            return numeric.dot(scaleTranslate, rotate);
+            return numeric.dot(translateRotate, scale);
     }
 
     x(): number[][] {
