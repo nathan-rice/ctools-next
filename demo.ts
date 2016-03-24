@@ -48,8 +48,9 @@ export class BezierSurface {
     interpolationX: number[][];
     interpolationY: number[][];
     interpolationZ: number[][];
+    public controlPoints: Point[][];
 
-    constructor(public controlPoints: Point[][]) {
+    constructor(controlPoints: Point[][]) {
         this.generateInterpolationMatrices();
     }
 
@@ -155,5 +156,55 @@ export class BicubicBezierSurface extends BezierSurface {
         p = numeric.dot(points, quadraticBernsteinMatrixTranspose);
         p = numeric.dot(quadraticBernsteinMatrix, p);
         return p;
+    }
+}
+
+export class ModelSegment {
+
+    surfaces: BezierSurface[];
+
+    constructor(p0: Point, p1: Point, public mean: number, public standardDeviation: number) {
+        let x0 = p0.x,
+            y0 = p0.y,
+            x1 = p1.x,
+            y1 = p1.y,
+            dx = x1 - x0,
+            dy = y1 - y0,
+            segmentSlope = dy / dx,
+            dispersionSlope = - 1 / segmentSlope,
+            a = pow(dispersionSlope, 2) + 1,
+            dispersionNorm = 3 * standardDeviation,
+            dispersiondx = Math.sqrt(pow(dispersionNorm, 2)/a),
+            dispersiondy = dispersionSlope * dispersiondx,
+            points = [
+                [],
+                [],
+                [],
+                [p0],
+                [p1],
+                [],
+                [],
+                []
+            ];
+        this.surfaces = [
+            new BicubicBezierSurface(points.slice(0, 4).map(a => a.slice(0, 4))),
+            new BicubicBezierSurface(points.slice(0, 4).map(a => a.slice(3))),
+            new BezierSurface(points.slice(3, 5).map(a => a.slice(0, 4))),
+            new BezierSurface(points.slice(3, 5).map(a => a.slice(3))),
+            new BicubicBezierSurface(points.slice(4).map(a => a.slice(0, 4))),
+            new BicubicBezierSurface(points.slice(4).map(a => a.slice(3)))
+        ]
+    }
+
+    static generateSurfaceControlPoints(center: Point, mean: number, standardDeviation: number) {
+        return [
+            new Point(),
+            new Point(),
+            new Point(),
+            center,
+            new Point(),
+            new Point(),
+            new Point()
+        ];
     }
 }
