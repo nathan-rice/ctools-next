@@ -1,4 +1,6 @@
 /// <reference path="definitions/numeric.d.ts" />
+/// <reference path="definitions/rbush.d.ts" />
+/// <reference path="definitions/google.maps.d.ts" />
 
 const quadraticBernsteinMatrix = [
     [1, 0, 0, 0],
@@ -48,20 +50,20 @@ export class BezierSurface {
     interpolationX: number[][];
     interpolationY: number[][];
     interpolationZ: number[][];
-    public controlPoints: Point[][];
 
-    constructor(controlPoints: Point[][]) {
+    constructor(public controlPoints: Point[][]) {
         this.generateInterpolationMatrices();
     }
 
     protected generateInterpolationMatrix(points: number[][]) {
-        let i, j, p;
+        let i = points.length, j = points[0].length, n = i - 1, m = j - 1, mn = m * n, coef, p;
 
         // we need to apply the binomial coefficients to the points
         for (i = points.length; i--;) {
-            for (j = points[i].length; j--;) {
-                // the binomial coefficient here has been simplified since j will never exceed 1
-                points[i][j] = points[i][j] * 12 / fact[i] / fact[3 - i]
+            // the binomial coefficient here has been simplified since j will never exceed 1
+            coef = mn / fact[i] / fact[n - i];
+            for (j = points[0].length; j--;) {
+                points[i][j] *= coef;
             }
         }
         p = numeric.dot(points, linearBernsteinMatrixTranspose);
@@ -82,7 +84,7 @@ export class BezierSurface {
 
     evaluate(u: number, v: number): number {
         if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
-        let uArr = [1, u, pow(u, 2), pow(u, 3)], vArr = [1, v];
+        let vArr = [1, v, pow(v, 2), pow(v, 3)], uArr = [1, u];
         return numeric.dot(numeric.dot(uArr, this.interpolationZ), vArr);
     }
 
@@ -163,29 +165,18 @@ export class ModelSegment {
 
     surfaces: BezierSurface[];
 
-    constructor(p0: Point, p1: Point, public mean: number, public standardDeviation: number) {
-        let x0 = p0.x,
-            y0 = p0.y,
-            x1 = p1.x,
-            y1 = p1.y,
-            dx = x1 - x0,
-            dy = y1 - y0,
-            segmentSlope = dy / dx,
-            dispersionSlope = - 1 / segmentSlope,
-            a = pow(dispersionSlope, 2) + 1,
-            dispersionNorm = 3 * standardDeviation,
-            dispersiondx = Math.sqrt(pow(dispersionNorm, 2)/a),
-            dispersiondy = dispersionSlope * dispersiondx,
-            points = [
-                [],
-                [],
-                [],
-                [p0],
-                [p1],
-                [],
-                [],
-                []
-            ];
+    static p0d = 0.858789829499;
+    static p1d = 1.25486806631;
+    static p1z = 0.004827763527348391;
+    static p2d = 3;
+    static p2z = 0.0111089965382;
+
+    constructor(p0: Point, p1: Point, public mean: number, public standardDeviation: number, transform?: number[][]) {
+        let points = ModelSegment.generateSurfaces(p0, p1, standardDeviation), scale;
+        if (transform) {
+            scale = numeric.det(transform);
+            points = points.map(a => a.map(p => ModelSegment.transformPoint(p, transform, scale)));
+        }
         this.surfaces = [
             new BicubicBezierSurface(points.slice(0, 4).map(a => a.slice(0, 4))),
             new BicubicBezierSurface(points.slice(0, 4).map(a => a.slice(3))),
@@ -196,15 +187,107 @@ export class ModelSegment {
         ]
     }
 
-    static generateSurfaceControlPoints(center: Point, mean: number, standardDeviation: number) {
+    static transformPoint(p: Point, transform: number[][], scale: number) {
+        let transformed = numeric.dot(p.toAugmented2DArray(), transform);
+        return new Point(transformed[0], transformed[1], p.z / scale)
+    }
+
+    static generateSurfaces(p0: Point, p1: Point, standardDeviation: number) {
+        let x0 = p0.x,
+            y0 = p0.y,
+            x1 = p1.x,
+            y1 = p1.y,
+            dx = x1 - x0,
+            dy = y1 - y0,
+            segmentSlope = dy / dx,
+            dispersionSlope = - 1 / segmentSlope,
+            lateralAlpha = pow(dispersionSlope, 2) + 1,
+            longitudinalAlpha = pow(segmentSlope, 2) + 1,
+            lateralDx = standardDeviation * Math.sqrt(lateralAlpha),
+            lateralDy = dispersionSlope * lateralDx,
+            longitudinalDx = standardDeviation * Math.sqrt(longitudinalAlpha),
+            longitudinalDy = segmentSlope * longitudinalDx;
+            /* Note that this is subtly wrong, it doesn't produce a mesh exactly equivalent to a bivariate normal for
+             * bicubic surfaces.  That being said, it should be pretty close and was much easier to produce. */
+            return this.generateLongitudinalSurfaceControlPoints(p0, p1, longitudinalDx, longitudinalDy).map(p => {
+                return this.generateLateralSurfaceControlPoints(p, lateralDx, lateralDy);
+            });
+    }
+
+    static generateLongitudinalSurfaceControlPoints(p0: Point, p1: Point, dx: number, dy: number) {
+        let x0 = p0.x,
+            y0 = p0.y,
+            x1 = p0.x,
+            y1 = p0.y,
+            z = p0.z,
+            p0d = this.p0d,
+            p1d = this.p1d,
+            p1z = this.p1z * z,
+            p2d = this.p2d,
+            p2z = this.p2z * z;
         return [
-            new Point(),
-            new Point(),
-            new Point(),
+            new Point(x0 - p2d * dx, y0 - p2d * dy, p2z),
+            new Point(x0 - p1d * dx, y0 - p1d * dy, p1z),
+            new Point(x0 - p0d * dx, y0 - p0d * dy, z),
+            p0,
+            p1,
+            new Point(x1 - p0d * dx, y1 - p0d * dy, z),
+            new Point(x1 - p1d * dx, y1 - p1d * dy, p1z),
+            new Point(x1 - p2d * dx, y1 - p2d * dy, p2z)
+        ]
+    }
+
+    static generateLateralSurfaceControlPoints(center: Point, dx: number, dy: number) {
+        let x = center.x,
+            y = center.y,
+            z = center.z,
+            p0d = this.p0d,
+            p1d = this.p1d,
+            p1z = this.p1z * z,
+            p2d = this.p2d,
+            p2z = this.p2z * z;
+        return [
+            new Point(x - p2d * dx, y - p2d * dy, p2z),
+            new Point(x - p1d * dx, y - p1d * dy, p1z),
+            new Point(x - p0d * dx, y - p0d * dy, z),
             center,
-            new Point(),
-            new Point(),
-            new Point()
+            new Point(x + p0d * dx, y + p0d * dy, z),
+            new Point(x + p1d * dx, y + p1d * dy, p1z),
+            new Point(x + p2d * dx, y + p2d * dy, p2z)
         ];
+    }
+}
+
+export class Viewport {
+    public rtree;
+    constructor(minLat: number, minLon: number, maxLat: number, maxLon: number, public xPixels: number,
+                public yPixels: number, pixelRatio: number) {
+        let dy = (maxLat - minLat) / (yPixels * pixelRatio),
+            dx = (maxLon - minLon) / (xPixels * pixelRatio),
+            cells = [];
+        for (let i = 0; minLon + i * dx < maxLon; i++) {
+            let cellMinLon = minLon + i * dx,
+                cellMaxLon = minLon + (i + 1) * dx;
+            for (let j = 0; minLat + j * dy < maxLat; j++) {
+                let cellMinLat = minLat + i * dy,
+                    cellMaxLat = minLat + (i + 0.5) * dy,
+                    center = new Point((cellMinLon + cellMaxLon)/2, (cellMinLat + cellMaxLat)/2);
+                cells.push([cellMinLon, cellMinLat, cellMaxLon, cellMaxLat, new ViewportCell(center, i, j)]);
+            }
+        }
+        this.rtree = rbush(16);
+        this.rtree.load(cells);
+    }
+}
+
+export class ViewportCell {
+    sources: any[];
+
+    constructor(public center: Point, public x: number, public y: number) {}
+}
+
+export class PollutionOverlay extends google.maps.OverlayView {
+    constructor(viewport: Viewport) {
+        super()
     }
 }

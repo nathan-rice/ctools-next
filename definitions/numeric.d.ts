@@ -13,4 +13,6 @@ declare module numeric {
     export function sub(a: number[][], b: number[][]): number[][];
 
     export function norm2(a: number[] | number[][]): number;
+
+    export function det(a: number[] | number[][]): number;
 }

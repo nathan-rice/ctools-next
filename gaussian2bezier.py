@@ -38,7 +38,9 @@ def bezier_normal_xy(x0, p1x, p1y, p2x):
     max_x = np.max(x0)
     min_y = stats.norm.pdf(min_x)
     max_y = stats.norm.pdf(max_x)
-    print 1 / max_y
+    print "min_y ", min_y
+    print "max_y ", max_y
+    print min_y / max_y
     p0 = np.array([min_x, min_y])
     p1 = np.array([p1x, p1y])
     p2 = np.array([p2x, max_y])
