@@ -1,6 +1,7 @@
 /// <reference path="definitions/numeric.d.ts" />
 /// <reference path="definitions/rbush.d.ts" />
 /// <reference path="definitions/google.maps.d.ts" />
+/// <reference path="definitions/jquery.d.ts" />
 
 const quadraticBernsteinMatrix = [
     [1, 0, 0, 0],
@@ -272,11 +273,31 @@ export class Viewport {
                 let cellMinLat = minLat + i * dy,
                     cellMaxLat = minLat + (i + 0.5) * dy,
                     center = new Point((cellMinLon + cellMaxLon)/2, (cellMinLat + cellMaxLat)/2);
-                cells.push([cellMinLon, cellMinLat, cellMaxLon, cellMaxLat, new ViewportCell(center, i, j)]);
+                cells.push([cellMinLon, cellMinLat, cellMaxLon, cellMaxLat, {cell: new ViewportCell(center, i, j)}]);
             }
         }
         this.rtree = rbush(16);
         this.rtree.load(cells);
+    }
+
+    protected offset(cell: ViewportCell) {
+        return (cell.x + cell.y * this.xPixels) * 4;
+    }
+
+    rasterize(colorMapFunction) {
+        let canvas = document.createElement("canvas"),
+            context = canvas.getContext("2d", {alpha: true}),
+            imageData = new ImageData(this.xPixels, this.yPixels),
+            data = imageData.data;
+        this.rtree.all().forEach(entry => {
+            let offset = this.offset(entry.cell),
+                values = colorMapFunction(entry.cell);
+            data[offset++] = values[0];
+            data[offset++] = values[1];
+            data[offset++] = values[2];
+            data[offset] = values[3];
+        });
+        (context as any).putImageData(imageData, 0, 0);
     }
 }
 
@@ -284,6 +305,10 @@ export class ViewportCell {
     sources: any[];
 
     constructor(public center: Point, public x: number, public y: number) {}
+
+    concentration(): number {
+        return this.sources.reduce((c, s) => c + s, 0);
+    }
 }
 
 export class PollutionOverlay extends google.maps.OverlayView {
