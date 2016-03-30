@@ -1,7 +1,6 @@
 /// <reference path="definitions/numeric.d.ts" />
 /// <reference path="definitions/rbush.d.ts" />
 /// <reference path="definitions/google.maps.d.ts" />
-/// <reference path="definitions/jquery.d.ts" />
 
 const quadraticBernsteinMatrix = [
     [1, 0, 0, 0],
@@ -51,8 +50,20 @@ export class BezierSurface {
     interpolationX: number[][];
     interpolationY: number[][];
     interpolationZ: number[][];
+    bounds: number[];
 
     constructor(public controlPoints: Point[][]) {
+        let i, j, minX, maxX, minY, maxY, point;
+        for (i = controlPoints.length; i--;) {
+            for (j = controlPoints[i].length; j--;) {
+                point = controlPoints[i][j];
+                if (!minX || point.x < minX) minX = point.x;
+                if (!maxX || point.x > maxX) maxX = point.x;
+                if (!minY || point.y < minY) minY = point.y;
+                if (!maxY || point.y < maxY) maxY = point.y;
+            }
+        }
+        this.bounds = [minX, minY, maxX, maxY];
         this.generateInterpolationMatrices();
     }
 
@@ -162,7 +173,7 @@ export class BicubicBezierSurface extends BezierSurface {
     }
 }
 
-export class ModelSegment {
+export class ModelSource {
 
     surfaces: BezierSurface[];
 
@@ -173,10 +184,10 @@ export class ModelSegment {
     static p2z = 0.0111089965382;
 
     constructor(p0: Point, p1: Point, public mean: number, public standardDeviation: number, transform?: number[][]) {
-        let points = ModelSegment.generateSurfaces(p0, p1, standardDeviation), scale;
+        let points = ModelSource.generateSurfaces(p0, p1, standardDeviation), scale;
         if (transform) {
             scale = numeric.det(transform);
-            points = points.map(a => a.map(p => ModelSegment.transformPoint(p, transform, scale)));
+            points = points.map(a => a.map(p => ModelSource.transformPoint(p, transform, scale)));
         }
         this.surfaces = [
             new BicubicBezierSurface(points.slice(0, 4).map(a => a.slice(0, 4))),
@@ -261,8 +272,11 @@ export class ModelSegment {
 
 export class Viewport {
     public rtree;
-    constructor(minLat: number, minLon: number, maxLat: number, maxLon: number, public xPixels: number,
-                public yPixels: number, pixelRatio: number) {
+
+    public maxValue: number;
+
+    constructor(public minLat: number, public minLon: number, public maxLat: number, public maxLon: number,
+                public xPixels: number, public yPixels: number, pixelRatio: number) {
         let dy = (maxLat - minLat) / (yPixels * pixelRatio),
             dx = (maxLon - minLon) / (xPixels * pixelRatio),
             cells = [];
@@ -284,6 +298,22 @@ export class Viewport {
         return (cell.x + cell.y * this.xPixels) * 4;
     }
 
+    loadSources(sources: ModelSource[]) {
+        sources.forEach(source => {
+            source.surfaces.forEach(surface => {
+                let matches = this.rtree.search(surface.bounds),
+                    points = matches.map(match => match.cell.center),
+                    values = surface.evaluatePoints(points),
+                    maxValue = Math.max(...values),
+                    i;
+                if (maxValue > this.maxValue) this.maxValue = maxValue;
+                for (i = matches.length; i--;) {
+                    if (values[i] > 0) matches[i].sources.push({source: source, value: values[i]})
+                }
+            });
+        });
+    }
+
     rasterize(colorMapFunction) {
         let canvas = document.createElement("canvas"),
             context = canvas.getContext("2d", {alpha: true}),
@@ -291,13 +321,14 @@ export class Viewport {
             data = imageData.data;
         this.rtree.all().forEach(entry => {
             let offset = this.offset(entry.cell),
-                values = colorMapFunction(entry.cell);
+                values = colorMapFunction(entry.cell.concentration());
             data[offset++] = values[0];
             data[offset++] = values[1];
             data[offset++] = values[2];
             data[offset] = values[3];
         });
         (context as any).putImageData(imageData, 0, 0);
+        return canvas.toDataURL();
     }
 }
 
@@ -307,12 +338,58 @@ export class ViewportCell {
     constructor(public center: Point, public x: number, public y: number) {}
 
     concentration(): number {
-        return this.sources.reduce((c, s) => c + s, 0);
+        return this.sources.reduce((c, s) => c + s.value, 0);
     }
 }
 
 export class PollutionOverlay extends google.maps.OverlayView {
-    constructor(viewport: Viewport) {
-        super()
+
+    bounds: google.maps.LatLngBounds;
+    div: HTMLDivElement;
+
+    constructor(private map: google.maps.Map, private viewport: Viewport) {
+        super();
+        this.bounds = new google.maps.LatLngBounds(new google.maps.LatLng(viewport.minLat, viewport.minLon),
+                                                    new google.maps.LatLng(viewport.maxLat, viewport.maxLon));
+        this.setMap(map);
+    }
+
+    private createDiv() {
+        let div = document.createElement('div');
+        div.style.borderStyle = 'none';
+        div.style.borderWidth = '0px';
+        div.style.position = 'absolute';
+        return div;
+    }
+
+    private createImg() {
+        let img = document.createElement('img');
+        // TODO: Add colormap function
+        img.src = this.viewport.rasterize(e => e);
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.position = 'absolute';
+        return img;
+    }
+
+    onAdd() {
+        this.div = this.createDiv();
+        this.div.appendChild(this.createImg());
+        this.getPanes().overlayLayer.appendChild(this.div);
+    }
+
+    onRemove() {
+        this.div.parentNode.removeChild(this.div);
+        this.div = null;
+    }
+
+    draw() {
+        let projection = this.getProjection(),
+            sw = projection.fromLatLngToDivPixel(this.bounds.getSouthWest()),
+            ne = projection.fromLatLngToDivPixel(this.bounds.getNorthEast());
+        this.div.style.left = sw.x + 'px';
+        this.div.style.top = ne.y + 'px';
+        this.div.style.width = (ne.x - sw.x) + 'px';
+        this.div.style.height = (sw.y - ne.y) + 'px';
     }
 }
