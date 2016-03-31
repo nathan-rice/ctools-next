@@ -1,5 +1,4 @@
 interface IRBush {
-    constructor;
     insert(entry: [number, number, number, number, any] | Object);
     remove(entry: [number, number, number, number, any] | Object);
     load(entries: [number, number, number, number, any][] | Object[]);

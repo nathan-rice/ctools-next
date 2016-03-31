@@ -53,10 +53,15 @@ export class BezierSurface {
     bounds: number[];
 
     constructor(public controlPoints: Point[][]) {
+        this.setBounds();
+        this.generateInterpolationMatrices();
+    }
+
+    protected setBounds() {
         let i, j, minX, maxX, minY, maxY, point;
-        for (i = controlPoints.length; i--;) {
-            for (j = controlPoints[i].length; j--;) {
-                point = controlPoints[i][j];
+        for (i = this.controlPoints.length; i--;) {
+            for (j = this.controlPoints[i].length; j--;) {
+                point = this.controlPoints[i][j];
                 if (!minX || point.x < minX) minX = point.x;
                 if (!maxX || point.x > maxX) maxX = point.x;
                 if (!minY || point.y < minY) minY = point.y;
@@ -64,7 +69,6 @@ export class BezierSurface {
             }
         }
         this.bounds = [minX, minY, maxX, maxY];
-        this.generateInterpolationMatrices();
     }
 
     protected generateInterpolationMatrix(points: number[][]) {
@@ -299,34 +303,42 @@ export class Viewport {
     }
 
     loadSources(sources: ModelSource[]) {
-        sources.forEach(source => {
-            source.surfaces.forEach(surface => {
-                let matches = this.rtree.search(surface.bounds),
+        let i, sourcesLength = sources.length;
+        for (i = 0; i < sourcesLength; i++) {
+            let j, source = sources[i], surfacesLength = source.surfaces.length;
+            for (j = 0; j < surfacesLength; j++) {
+                let surface = source.surfaces[i],
+                    matches = this.rtree.search(surface.bounds),
+                    matchesLength = matches.length,
                     points = matches.map(match => match.cell.center),
                     values = surface.evaluatePoints(points),
                     maxValue = Math.max(...values),
-                    i;
+                    k;
                 if (maxValue > this.maxValue) this.maxValue = maxValue;
-                for (i = matches.length; i--;) {
+                for (k = 0; k < matchesLength; k++) {
                     if (values[i] > 0) matches[i].sources.push({source: source, value: values[i]})
                 }
-            });
-        });
+            }
+        }
     }
 
     rasterize(colorMapFunction) {
         let canvas = document.createElement("canvas"),
             context = canvas.getContext("2d", {alpha: true}),
             imageData = new ImageData(this.xPixels, this.yPixels),
-            data = imageData.data;
-        this.rtree.all().forEach(entry => {
-            let offset = this.offset(entry.cell),
-                values = colorMapFunction(entry.cell.concentration());
+            data = imageData.data,
+            entries = this.rtree.all(),
+            entriesLength = entries.length,
+            i;
+        for (i = 0; i < entriesLength; i++) {
+            let cell = entries[i].cell,
+                offset = this.offset(cell),
+                values = colorMapFunction(cell.concentration());
             data[offset++] = values[0];
             data[offset++] = values[1];
             data[offset++] = values[2];
             data[offset] = values[3];
-        });
+        }
         (context as any).putImageData(imageData, 0, 0);
         return canvas.toDataURL();
     }

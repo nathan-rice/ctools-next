@@ -2,16 +2,16 @@
  * Created by nathan on 3/22/16.
  */
 
-define(["demo"], function (demo) {
+define(["ctools"], function (ctools) {
 
     describe("Point", function() {
         it("should be properly converted to a 3D array", function() {
-            var point = new demo.Point(30, 30, 10);
+            var point = new ctools.Point(30, 30, 10);
             expect(point.to3DArray()).toEqual([30, 30, 10]);
         });
 
         it("should be properly converted to a 2D array", function () {
-            var point = new demo.Point(30, 30, 10);
+            var point = new ctools.Point(30, 30, 10);
             expect(point.to2DArray()).toEqual([30, 30]);
         })
     });
@@ -20,39 +20,39 @@ define(["demo"], function (demo) {
 
         it("should properly map Point x values to the X array", function () {
             var points = [
-                [new demo.Point(1, 2, 3), new demo.Point(4, 5, 6)],
-                [new demo.Point(7, 8, 9), new demo.Point(10, 11, 12)]
+                [new ctools.Point(1, 2, 3), new ctools.Point(4, 5, 6)],
+                [new ctools.Point(7, 8, 9), new ctools.Point(10, 11, 12)]
             ],
-                surface = new demo.BezierSurface(points);
+                surface = new ctools.BezierSurface(points);
             expect(surface.x()).toEqual([[1, 4], [7, 10]]);
         });
 
         it("should properly map Point y values to the y array", function () {
             var points = [
-                [new demo.Point(1, 2, 3), new demo.Point(4, 5, 6)],
-                [new demo.Point(7, 8, 9), new demo.Point(10, 11, 12)]
+                [new ctools.Point(1, 2, 3), new ctools.Point(4, 5, 6)],
+                [new ctools.Point(7, 8, 9), new ctools.Point(10, 11, 12)]
             ],
-                surface = new demo.BezierSurface(points);
+                surface = new ctools.BezierSurface(points);
             expect(surface.y()).toEqual([[2, 5], [8, 11]]);
         });
 
         it("should properly map Point z values to the z array", function () {
             var points = [
-                [new demo.Point(1, 2, 3), new demo.Point(4, 5, 6)],
-                [new demo.Point(7, 8, 9), new demo.Point(10, 11, 12)]
+                [new ctools.Point(1, 2, 3), new ctools.Point(4, 5, 6)],
+                [new ctools.Point(7, 8, 9), new ctools.Point(10, 11, 12)]
             ],
-                surface = new demo.BezierSurface(points);
+                surface = new ctools.BezierSurface(points);
             expect(surface.z()).toEqual([[3, 6], [9, 12]]);
         });
 
         it("should generate the correct translation matrix", function () {
             var p = [
-                new demo.Point(5, 5),
-                new demo.Point(0, 10),
-                new demo.Point(15, 15),
-                new demo.Point(10, 20)
+                new ctools.Point(5, 5),
+                new ctools.Point(0, 10),
+                new ctools.Point(15, 15),
+                new ctools.Point(10, 20)
             ],
-                surface = new demo.BezierSurface([p.slice(0, 2), p.slice(2)]),
+                surface = new ctools.BezierSurface([p.slice(0, 2), p.slice(2)]),
                 pointArr = p.map(function (point) { return point.toAugmented2DArray()}),
                 matrix = surface.generateTranslationMatrix(),
                 translated = numeric.dot(pointArr, matrix);
@@ -63,12 +63,12 @@ define(["demo"], function (demo) {
 
         it("should generate the correct rotation matrix", function () {
             var p = [
-                new demo.Point(0, 0),
-                new demo.Point(-10, 10),
-                new demo.Point(10, 10),
-                new demo.Point(20, 20)
+                new ctools.Point(0, 0),
+                new ctools.Point(-10, 10),
+                new ctools.Point(10, 10),
+                new ctools.Point(20, 20)
             ],
-                surface = new demo.BezierSurface([p.slice(0, 2), p.slice(2)]),
+                surface = new ctools.BezierSurface([p.slice(0, 2), p.slice(2)]),
                 pointArr = p.map(function (point) { return point.toAugmented2DArray()}),
                 matrix = surface.generateRotationMatrix(),
                 rotated = numeric.dot(pointArr, matrix);
@@ -79,12 +79,12 @@ define(["demo"], function (demo) {
 
         it("should properly rotate when projecting to the unit square", function () {
             var p = [
-                new demo.Point(0, 0),
-                new demo.Point(-10, 10),
-                new demo.Point(10, 10),
-                new demo.Point(0, 20)
+                new ctools.Point(0, 0),
+                new ctools.Point(-10, 10),
+                new ctools.Point(10, 10),
+                new ctools.Point(0, 20)
             ],
-                surface = new demo.BezierSurface([p.slice(0, 2), p.slice(2)]),
+                surface = new ctools.BezierSurface([p.slice(0, 2), p.slice(2)]),
                 projected = surface.projectToUnitSquare(p);
 
             expect(projected[0][0]).toBeCloseTo(0);
@@ -99,12 +99,12 @@ define(["demo"], function (demo) {
 
         it("should properly translate when projecting to the unit square", function () {
             var p = [
-                new demo.Point(10, 10),
-                new demo.Point(0, 20),
-                new demo.Point(20, 20),
-                new demo.Point(10, 30)
+                new ctools.Point(10, 10),
+                new ctools.Point(0, 20),
+                new ctools.Point(20, 20),
+                new ctools.Point(10, 30)
             ],
-                surface = new demo.BezierSurface([p.slice(0, 2), p.slice(2)]),
+                surface = new ctools.BezierSurface([p.slice(0, 2), p.slice(2)]),
                 projected = surface.projectToUnitSquare(p);
 
             expect(projected[0][0]).toBeCloseTo(0);
@@ -119,12 +119,12 @@ define(["demo"], function (demo) {
 
         it("should properly scale axes independently when projecting to the unit square", function () {
             var p = [
-                new demo.Point(0, 0),
-                new demo.Point(-5, 5),
-                new demo.Point(10, 10),
-                new demo.Point(5, 15)
+                new ctools.Point(0, 0),
+                new ctools.Point(-5, 5),
+                new ctools.Point(10, 10),
+                new ctools.Point(5, 15)
             ],
-                surface = new demo.BezierSurface([p.slice(0, 2), p.slice(2)]),
+                surface = new ctools.BezierSurface([p.slice(0, 2), p.slice(2)]),
                 projected = surface.projectToUnitSquare(p);
 
             expect(projected[0][0]).toBeCloseTo(0);
@@ -139,12 +139,12 @@ define(["demo"], function (demo) {
 
         it("should properly compute the bezier surface z value", function () {
             var p = [
-                new demo.Point(0, 0, 10),
-                new demo.Point(-5, 5, 0),
-                new demo.Point(10, 10, 10),
-                new demo.Point(5, 15, 0)
+                new ctools.Point(0, 0, 10),
+                new ctools.Point(-5, 5, 0),
+                new ctools.Point(10, 10, 10),
+                new ctools.Point(5, 15, 0)
             ],
-                surface = new demo.BezierSurface([p.slice(0, 2), p.slice(2)]);
+                surface = new ctools.BezierSurface([p.slice(0, 2), p.slice(2)]);
 
             expect(surface.evaluate(0, 0)).toBeCloseTo(10);
             expect(surface.evaluate(0, 1)).toBeCloseTo(0);
