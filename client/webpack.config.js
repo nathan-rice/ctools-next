@@ -7,7 +7,10 @@ module.exports = {
     },
     module: {
         loaders: [
-            { test: /\.css$/, loader: "style!css" },
+            { test: /\.css$/, loader: "style!css" }
         ]
+    },
+    resolve: {
+        modulesDirectories: ["node_modules", "", "components"]
     }
 };

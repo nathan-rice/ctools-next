@@ -1,3 +1,8 @@
+require('./css/ctools.css');
+rbush = require('rbush');
+numeric = require('numeric');
+
+
 // onGoogleReady is being defined as a global function on purpose
 onGoogleReady = function() {
     var mapDiv = document.getElementById('map'),
@@ -7,6 +12,6 @@ onGoogleReady = function() {
             mapTypeId: google.maps.MapTypeId.ROADMAP
         },
         map = new google.maps.Map(mapDiv, mapOptions);
-    // ctools is also being defined as a global variable on purpose
+    // the ctools module must be loaded after the Google maps api
     ctools = require('./ctools.js');
 };
